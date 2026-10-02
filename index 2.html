@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Knock Map">
+<meta name="theme-color" content="#000000">
+<title>Knock Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--brand:#3a9be0;--bg:#000;--card:#111;--line:#2a2a2a;color-scheme:dark}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--brand);font:15px system-ui,-apple-system,sans-serif}
+#map{position:fixed;inset:0;background:#000}
+#bar{position:fixed;left:8px;right:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:1000;display:flex;gap:6px;align-items:center;background:#000d;border:1px solid var(--line);border-radius:14px;padding:6px 8px}
+#bar span{flex:1;font-weight:600;font-size:14px;white-space:nowrap}
+button{font:inherit;color:var(--brand);border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px}
+.pri{background:var(--brand);color:#000;border-color:var(--brand);font-weight:600}
+dialog{border:1px solid var(--line);border-radius:16px;padding:16px;width:min(94vw,460px);max-height:90vh;background:var(--bg);color:var(--brand)}
+dialog::backdrop{background:#000b}
+h2{color:var(--brand)}
+.kb{padding:16px 4px;color:#fff;border:none;font-weight:700;border-radius:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.row{display:flex;gap:8px}.row>div{flex:1}
+label{display:block;font-size:12px;color:var(--brand);opacity:.8;margin:8px 0 3px}
+input,select,textarea{width:100%;box-sizing:border-box;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--brand)}
+input::-webkit-calendar-picker-indicator{filter:invert(.7)}
+a{color:var(--brand)}
+[hidden]{display:none!important}
+a.btn{display:inline-block;text-decoration:none;font:inherit;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;margin:6px 6px 0 0;color:var(--brand)}
+a.btn.pri{color:#000}
+.it{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px;margin-bottom:8px}
+.leaflet-control-attribution{background:#000a!important;color:var(--brand)!important}
+.leaflet-control-attribution a{color:var(--brand)!important}
+.me-dot{background:#1c7ed6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px #1c7ed644}
+</style></head><body>
+<div id="map"></div>
+<div id="bar"><span id="cnt"></span><button id="find">📍</button><button id="fol">Follow</button><button id="lst" class="pri">List</button></div>
+
+<dialog id="pd"><h2 id="pt" style="margin:0 0 4px;font-size:18px">House</h2>
+ <div class="g3"><button class="kb" data-r="Sold" style="background:#2f9e44">Sold</button><button class="kb" data-r="Not home" style="background:#f08c00">Not home</button><button class="kb" data-r="No" style="background:#e03131">No</button></div>
+ <div id="pf" hidden><label>Name</label><input id="n"><label>Phone</label><input id="ph" type="tel">
+  <label>Address (optional)</label><input id="ad"><div class="row"><div><label>Price ($)</label><input id="pr" type="number" inputmode="decimal"></div><div><label>Service</label><select id="sv"><option>Window washing</option><option>Pressure washing</option><option>Both</option></select></div></div>
+  <div class="row"><div><label>Date</label><input id="dt" type="date"></div><div><label>Time</label><input id="tm" type="time"></div></div>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px"><input type="checkbox" id="go" style="width:auto">Open Apple Maps for directions after saving</label><button class="pri" id="sv_" style="width:100%;margin-top:10px">Save sale</button><div id="pq"><a class="btn" id="p_txt">Text</a><a class="btn" id="p_dir">Directions</a></div></div>
+ <div style="display:flex;justify-content:space-between;margin-top:12px"><button id="rm" style="color:#ff6b6b">Remove pin</button><button id="cl">Close</button></div></dialog>
+
+<dialog id="ld"><h2 style="margin:0 0 8px;font-size:18px">Sold customers</h2>
+ <label>Message ({name} becomes their first name)</label><textarea id="tpl" rows="3" style="width:100%;box-sizing:border-box;font:inherit;padding:10px"></textarea>
+ <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button id="sa">Select all</button><button id="gt" class="pri">Group text</button><button id="ot" class="pri">One by one</button></div>
+ <div style="font-size:12px;opacity:.8;margin-bottom:8px">Group text puts everyone in one thread, so they can see each other's numbers. One by one gives each person their own message; you tap Send for each.</div>
+ <div id="li"></div>
+ <div style="display:flex;justify-content:space-between;margin-top:10px"><button id="ex" class="pri">Export CSV</button><button id="lc">Close</button></div></dialog>
+<dialog id="qd"><h2 id="qt" style="margin:0 0 8px;font-size:18px"></h2><div id="qn" style="font-size:20px;margin-bottom:10px"></div>
+ <a class="btn pri" id="qo">Open Messages</a><button id="qx" style="margin-top:6px">Next →</button>
+ <div style="margin-top:12px"><button id="qc">Done</button></div></dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),KEY="knockmap_v1",COL={"Sold":"#2f9e44","Not home":"#f08c00","No":"#e03131"};
+let pins=[];try{pins=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(pins))}catch(e){}};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const map=L.map("map",{zoomControl:false,maxZoom:21,zoomSnap:.25,zoomDelta:.5,preferCanvas:true,inertiaDeceleration:2500,bounceAtZoomLimits:false,tapTolerance:15}).setView([39.5,-98.35],4);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxNativeZoom:19,maxZoom:21,keepBuffer:6,updateWhenIdle:false,updateWhenZooming:false,attribution:"Imagery © Esri"}).addTo(map);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",{maxNativeZoom:19,maxZoom:21,keepBuffer:6,updateWhenIdle:false,updateWhenZooming:false,opacity:.8}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+let me=null,acc=null,first=true,cur=null;
+function render(){
+  layer.clearLayers();
+  pins.forEach(p=>L.circleMarker([p.lat,p.lng],{radius:11,color:"#fff",weight:3,fillColor:COL[p.r],fillOpacity:1,bubblingMouseEvents:false}).on("click",()=>openPin(p)).addTo(layer));
+  const c=r=>pins.filter(p=>p.r===r).length;
+  $("cnt").innerHTML=`<span style="color:#2f9e44">● ${c("Sold")}</span> &nbsp;<span style="color:#f08c00">● ${c("Not home")}</span> &nbsp;<span style="color:#e03131">● ${c("No")}</span>`;
+}
+function openPin(p){cur=p;const o=p.id?p:{};
+  $("pt").textContent=p.id?"Update this house":"New house";
+  $("n").value=o.name||"";$("ph").value=o.phone||"";$("pr").value=o.price||"";$("sv").value=o.service||"Window washing";$("dt").value=o.date||"";$("tm").value=o.time||"";
+  $("ad").value=o.address||"";try{$("go").checked=localStorage.getItem("knockmap_go")!=="0"}catch(e){$("go").checked=true}
+  $("p_dir").href=dirUrl(p);$("p_txt").href=o.phone?smsOne(o):"#";$("p_txt").hidden=!o.phone;$("pq").hidden=!p.id;
+  $("pf").hidden=o.r!=="Sold";$("rm").hidden=!p.id;$("pd").showModal()}
+function put(o){
+  if(!cur.id){cur.id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,4);pins.push(cur)}
+  Object.assign(cur,o,{ts:Date.now()});save();render()}
+document.querySelectorAll(".kb").forEach(b=>b.onclick=()=>{const r=b.dataset.r;
+  if(r==="Sold"){put({r});$("pt").textContent="Update this house";$("rm").hidden=false;$("pf").hidden=false}else{put({r});$("pd").close()}});
+$("sv_").onclick=()=>{put({r:"Sold",name:$("n").value.trim(),phone:$("ph").value.trim(),address:$("ad").value.trim(),price:+$("pr").value||0,service:$("sv").value,date:$("dt").value,time:$("tm").value});try{localStorage.setItem("knockmap_go",$("go").checked?"1":"0")}catch(e){}$("pd").close();if($("go").checked)location.href=dirUrl(cur)};
+$("rm").onclick=()=>{pins=pins.filter(p=>p.id!==cur.id);save();render();$("pd").close()};
+$("cl").onclick=()=>$("pd").close();
+map.on("click",e=>openPin({lat:e.latlng.lat,lng:e.latlng.lng}));
+// live location
+map.on("locationfound",e=>{
+  if(!me){me=L.marker(e.latlng,{icon:L.divIcon({className:"",html:'<div class="me-dot" style="width:16px;height:16px"></div>',iconSize:[16,16]}),interactive:false,zIndexOffset:1000}).addTo(map);acc=L.circle(e.latlng,{radius:e.accuracy,weight:1,fillOpacity:.1,interactive:false}).addTo(map)}
+  me.setLatLng(e.latlng);acc.setLatLng(e.latlng).setRadius(e.accuracy);
+  if(first){first=false;map.setView(e.latlng,19)}else if(follow)map.panTo(e.latlng)});
+let follow=false;
+$("fol").onclick=()=>{follow=!follow;$("fol").classList.toggle("pri",follow);if(follow&&me)map.setView(me.getLatLng(),Math.max(map.getZoom(),19))};
+map.on("dragstart",()=>{if(follow){follow=false;$("fol").classList.remove("pri")}});
+map.on("locationerror",()=>alert("Location is blocked. Allow location for this site in your browser settings."));
+map.locate({watch:true,enableHighAccuracy:true});
+$("find").onclick=()=>{if(me)map.setView(me.getLatLng(),Math.max(map.getZoom(),19));else map.locate({watch:true,enableHighAccuracy:true})};
+// list, texting, directions
+const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent),sel=new Set(),TPK="knockmap_tpl",DEF="Hi {name}, this is Edwards Window Washing. ";
+const tpl=()=>{try{return localStorage.getItem(TPK)||DEF}catch(e){return DEF}};
+const digits=v=>String(v||"").replace(/[^\d+]/g,"");
+const msgFor=p=>(($("tpl")&&$("tpl").value)||tpl()).replace(/\{name\}/g,(p.name||"").trim().split(/\s+/)[0]||"there");
+const smsOne=p=>"sms:"+digits(p.phone)+(isIOS?"&":"?")+"body="+encodeURIComponent(msgFor(p));
+const smsGroup=a=>(isIOS?"sms:/open?addresses="+a.map(p=>digits(p.phone)).join(",")+"&":"sms:"+a.map(p=>digits(p.phone)).join(",")+"?")+"body="+encodeURIComponent(msgFor({name:""}));
+function dirUrl(p){return "https://maps.apple.com/?dirflg=d&daddr="+(p.address?encodeURIComponent(p.address):p.lat+","+p.lng)}
+function renderList(){const s=pins.filter(p=>p.r==="Sold").sort((a,b)=>b.ts-a.ts);
+  $("li").innerHTML=s.length?s.map(p=>`<div class="it"><label style="display:flex;gap:8px;align-items:center;margin:0;opacity:1;font-size:15px"><input type="checkbox" data-sel="${p.id}" style="width:auto" ${sel.has(p.id)?"checked":""} ${p.phone?"":"disabled"}><b>${esc(p.name||"(no name)")}</b></label>
+   <div>${p.price?"$"+p.price+" · ":""}${esc(p.service||"")}</div><div>${esc(p.date||"")} ${esc(p.time||"")}</div>${p.address?`<div>${esc(p.address)}</div>`:""}
+   <div>${p.phone?`<a class="btn" href="tel:${esc(digits(p.phone))}">Call</a><a class="btn" href="${esc(smsOne(p))}">Text</a>`:""}<a class="btn" href="${esc(dirUrl(p))}">Directions</a></div></div>`).join(""):"<p>No sales yet.</p>"}
+$("lst").onclick=()=>{$("tpl").value=tpl();renderList();$("ld").showModal()};
+$("tpl").oninput=()=>{try{localStorage.setItem(TPK,$("tpl").value)}catch(e){}};
+$("li").onchange=e=>{const id=e.target.dataset.sel;if(id){e.target.checked?sel.add(id):sel.delete(id)}};
+$("sa").onclick=()=>{const c=pins.filter(p=>p.r==="Sold"&&p.phone),all=c.every(p=>sel.has(p.id));c.forEach(p=>all?sel.delete(p.id):sel.add(p.id));renderList()};
+const chosen=()=>pins.filter(p=>sel.has(p.id)&&p.phone);
+$("gt").onclick=()=>{const c=chosen();if(!c.length){alert("Check at least one customer who has a phone number.");return}location.href=smsGroup(c)};
+let qi=[],qx=0;
+function showQ(){const p=qi[qx];$("qt").textContent="Text "+(qx+1)+" of "+qi.length;$("qn").textContent=p.name||p.phone;$("qo").href=smsOne(p);$("qx").textContent=qx+1<qi.length?"Next →":"Finish"}
+$("ot").onclick=()=>{qi=chosen();if(!qi.length){alert("Check at least one customer who has a phone number.");return}qx=0;showQ();$("qd").showModal()};
+$("qx").onclick=()=>{if(qx+1<qi.length){qx++;showQ()}else $("qd").close()};
+$("qc").onclick=()=>$("qd").close();
+$("lc").onclick=()=>$("ld").close();
+$("ex").onclick=()=>{const h=["result","name","phone","address","price","service","date","time","lat","lng"],q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const csv=[h.join(",")].concat(pins.map(p=>h.map(k=>q(p[k])).join(","))).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="knock-map.csv";a.click()};
+render();
+</script></body></html>
